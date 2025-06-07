@@ -20,33 +20,330 @@
       height: 300px;
     }
 
+    #tiles {
+      position: relative;
+    }
+
+    #tiles canvas {
+      position: absolute;
+      
+    }
+
+    @keyframes tileMoveEffect {
+    0% {
+      /* Start at original position and scale */
+      transform: scale(1);
+      box-shadow: none;
+    }
+    50% {
+      /* Scale up and add shadow mid-way */
+      transform: scale(1.15) rotate(10deg);
+      box-shadow: 0 0 20px gold;
+    }
+    100% {
+      /* End at normal scale */
+      transform: scale(1) rotate(0deg);
+      box-shadow: none;
+    }
+  }
+
+  #tiles canvas.moving {
+    animation: tileMoveEffect 0.4s;
+  }
+ 
     /* Your style here... */
   </style>
 </head>
 
 <body>
-  <div id="captcha-container">
+<div id="captcha-container">
     <!-- Add your CAPTCHA here: -->
-    Hello world!
+    <div id="tiles"></div>
+    <img id="puzzlePNG" src="" alt="" style="display:none;">
+</div>
 
-    <!-- We've added a sample button. Feel free to remove it: -->
-    <button id="solve">
-      Solve!
-    </button>
-  </div>
+<script type="text/javascript">
 
-  <script type="text/javascript">
-    (function(window, document){
-      // This is how you tell the parent window that the CAPTCHA was successful.
-      function captchaSuccess() {
-        window.top.postMessage("success", '*');
+  // Declare globally
+  let puzzleBoardSize = 3; // or your desired size
+  let tileMoveDuration = 1.7; // seconds
+  let tileTransformEffect = ""; // or "ease-in-out", "cubic-bezier", etc.
+  let deadClickChance = 0.1; // 10% chance of a dead click
+
+
+
+
+
+
+
+  let tileGrid;
+  let emptyRow;
+  let emptyCol;
+  let isAnimating = false;
+
+  (function(window, document){
+    
+    function captchaSuccess() {
+      window.top.postMessage('success', '*');
+    }
+
+    const style = document.getElementById('captcha-container').getBoundingClientRect();
+
+    const size = ( style.width > style.height ? style.height : style.width ) - ( puzzleBoardSize - 1 );
+
+    const puzzleImage = document.getElementById('puzzlePNG');
+
+    // Create an Image object
+    const img = new window.Image();
+    img.src = './rickroll.png'; // Make sure this path is correct
+
+    img.onload = function() {
+      // Create a square canvas
+    
+      const squareCanvas = document.createElement('canvas');
+      squareCanvas.width = size;
+      squareCanvas.height = size;
+      const ctx = squareCanvas.getContext('2d');
+
+      ctx.drawImage(img, 0, 0, size, size);
+      // Set the puzzlePNG src to the canvas data
+      puzzleImage.src = squareCanvas.toDataURL();
+      const tileSize = size / puzzleBoardSize;
+
+    // Create a 2D array to track tile positions
+    tileGrid = [];
+    const tilesDiv = document.getElementById('tiles');
+    tilesDiv.style.gridTemplateColumns = "repeat(" + puzzleBoardSize + ", " +tileSize + "px)";
+    tilesDiv.style.gridTemplateRows = "repeat(" + puzzleBoardSize + ", " +tileSize + "px)";
+    const captchaContainer = document.getElementById('captcha-container');
+     
+    debugger;
+    tilesDiv.style.left = Number(captchaContainer.getBoundingClientRect().width) / 2 + "px";
+    emptyRow = puzzleBoardSize - 1;
+    emptyCol = puzzleBoardSize - 1;
+    
+    // Split into tiles
+    for (let row = 0; row < puzzleBoardSize; row++) {
+      tileGrid[row] = [];
+      for (let col = 0; col < puzzleBoardSize; col++) {
+        const tileCanvas = document.createElement('canvas');
+        tileCanvas.width = tileSize;
+        tileCanvas.height = tileSize;
+        const tileCtx = tileCanvas.getContext('2d');
+        tileCtx.drawImage(
+          squareCanvas,
+          col * tileSize, 
+          row * tileSize,
+          tileSize,
+          tileSize,
+          0, 0,
+          tileSize,
+          tileSize
+        );
+
+        // Store logical position as data attributes
+        tileCanvas.dataset.row = row;
+        tileCanvas.dataset.col = col;
+
+        // Add these lines to store the starting position:
+        tileCanvas.dataset.correctRow = row;
+        tileCanvas.dataset.correctCol = col;
+
+        //Give each tile a unique number
+        tileCanvas.dataset.tileNumber = Number( row * puzzleBoardSize + col + 1 ) ;
+
+        // Hide the last tile for sliding puzzle
+        if(row == puzzleBoardSize - 1 && col == puzzleBoardSize - 1) {
+          tileCanvas.style.visibility = "hidden";
+          tileCanvas.dataset.tileNumber = 0; // Set the empty tile number to 0
+        }
+
+        tileCanvas.style.position = "absolute";
+        tileCanvas.style.width = tileSize + "px";
+        tileCanvas.style.height = tileSize + "px";
+        tileCanvas.style.transform = `translate(${col * tileSize}px, ${row * tileSize}px)`;
+
+       
+
+        tilesDiv.appendChild(tileCanvas);
+        tileGrid[row][col] = tileCanvas; // Track tile in grid
+
+
+         // Add click event listener for tileCanvas
+        tileCanvas.addEventListener('click', function() {
+          
+          if (Math.random() < deadClickChance) {
+            // Dead click: lock for 1 second (1000 ms)
+            isAnimating = true;
+            console.log('Dead click detected. please wait...');
+            setTimeout(() => {
+            isAnimating = false;
+          }, 2000); // 1000 ms = 1 second
+          return;
+          }
+
+
+        
+          if (isAnimating) return; // Prevent clicks during animation
+
+          const row = parseInt(this.dataset.row, 10);
+          const col = parseInt(this.dataset.col, 10);
+          // Make sure emptyRow and emptyCol are numbers too
+          const emptyRowNum = parseInt(emptyRow, 10);
+          const emptyColNum = parseInt(emptyCol, 10);
+          const isAdjacent =
+            (row === emptyRowNum && Math.abs(col - emptyColNum) === 1) ||
+            (col === emptyColNum && Math.abs(row - emptyRowNum) === 1);
+       
+          if (isAdjacent) {
+            isAnimating = true; // Lock further moves
+
+            // Move the clicked tile
+            
+            tileGrid[emptyRowNum][emptyColNum].style.transform = `translate(${col * tileSize}px, ${row * tileSize}px)`;
+
+            // Update data attributes and tileGrid as before
+            this.dataset.row = emptyRowNum;
+            this.dataset.col = emptyColNum;
+            tileGrid[emptyRowNum][emptyColNum].dataset.row = row;
+            tileGrid[emptyRowNum][emptyColNum].dataset.col = col;
+
+            // Swap in tileGrid
+            tileGrid[row][col] = tileGrid[emptyRowNum][emptyColNum];
+            tileGrid[emptyRowNum][emptyColNum] = this;
+
+            // Update empty position
+            emptyRow = row;
+            emptyCol = col;
+            
+            
+            // Listen for transition end on the moving tile
+            const onTransitionEnd = () => {
+              isAnimating = false; // Unlock
+              this.removeEventListener('transitionend', onTransitionEnd);
+            };
+            this.addEventListener('transitionend', onTransitionEnd);
+            
+            let delay = Math.random() * 1.5; // seconds
+            console.log('Delay:', delay);
+            this.style.transition = `transform ${tileMoveDuration}s linear ${delay}s`;
+
+            this.style.transform = `translate(${emptyColNum * tileSize}px, ${emptyRowNum * tileSize}px)`;
+            
+            
+            
+          } else {
+            console.log('Tile is not adjacent to the empty space.');            
+          }
+   
+          // Check if the puzzle is solved
+          if (isSolved()) {
+            captchaSuccess()
+          }
+        });
+
+
+        
+      }
+    }
+
+    // After all tiles are created and appended:
+    let positions = [];
+    for (let i = 1; i <= puzzleBoardSize * puzzleBoardSize - 1; i++) {
+      positions.push(i);
+    }
+    positions.push(0); // 0 represents the empty tile
+
+
+
+    // 2. Shuffle the positions array (Fisher-Yates shuffle)
+    do {
+      // Fisher-Yates shuffle
+      for (let i = positions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [positions[i], positions[j]] = [positions[j], positions[i]];
+      }
+    } while (!isSolvablePositions(positions, puzzleBoardSize));
+
+    // 3. Reassign tiles to new positions
+
+    for (let i = 0; i < positions.length; i++) {
+      const tile = Array.from(tilesDiv.children).find(
+        el => Number(el.dataset.tileNumber) == positions[i]
+      );
+      const row = Math.floor(i / puzzleBoardSize);
+      const col = i % puzzleBoardSize;
+
+      // Set initial position (no transition yet)
+      tile.style.transition = "none";
+      tile.style.transform = `translate(${col * tileSize}px, ${row * tileSize}px)`;
+      tile.dataset.row = row;
+      tile.dataset.col = col;
+      tileGrid[row][col] = tile;
+      if (parseInt(tile.dataset.tileNumber, 10) === 0) {
+        emptyCol = col;
+        emptyRow = row;
       }
 
-      // Your CAPTCHA code goes here, we've added a simple example below:
-      document.getElementById('solve')
-           .addEventListener('click', () => captchaSuccess());
+      // Force a reflow
+      tilesDiv.offsetWidth;
 
-    })(window, document);
-  </script>
-</body>
+      // Re-enable transition for all tiles
+      // for (let tile of tilesDiv.children) {
+             
+            
+      //       tile.style.transition = "transform 4s cubic-bezier(.68,-0.55,.27,1.55)";
+      // }
+         
+
+
+
+    }
+    
+};
+  })(window, document);
+
+  function isSolved() {
+  for (let row = 0; row < puzzleBoardSize; row++) {
+    for (let col = 0; col < puzzleBoardSize; col++) {
+      const tile = tileGrid[row][col];
+      // Skip the hidden tile if needed
+      if (tile.style.visibility === "hidden") continue;
+      if (
+        parseInt(tile.dataset.correctRow, 10) !== row ||
+        parseInt(tile.dataset.correctCol, 10) !== col
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+    
+  function isSolvablePositions(positions, puzzleBoardSize) {
+  // positions: array of tile numbers, including 0 for the empty tile
+
+  let inversions = 0;
+  for (let i = 0; i < positions.length - 1; i++) {
+    for (let j = i + 1; j < positions.length; j++) {
+      if (positions[i] && positions[j] && positions[i] > positions[j]) inversions++;
+    }
+  }
+
+  // Find the row of the empty tile from the bottom
+  const emptyIndex = positions.indexOf(0);
+  const emptyRow = Math.floor(emptyIndex / puzzleBoardSize);
+  const emptyRowFromBottom = puzzleBoardSize - emptyRow;
+
+  if (puzzleBoardSize % 2 === 1) {
+    // Odd grid: solvable if inversions is even
+    return inversions % 2 === 0;
+  } else {
+    // Even grid: solvable if (inversions + emptyRowFromBottom) is odd
+    return (inversions + emptyRowFromBottom) % 2 === 1;
+  }
+}
+    
+</script>
+
 </html>
