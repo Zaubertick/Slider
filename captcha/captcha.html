@@ -26,7 +26,7 @@
 
     #tiles canvas {
       position: absolute;
-      
+      border: 1px solid #000; /* Slim black border */
     }
 
     @keyframes tileMoveEffect {
@@ -66,7 +66,7 @@
 
   // Declare globally
   let puzzleBoardSize = 3; // or your desired size
-  let tileMoveDuration = 1.7; // seconds
+  let tileMoveDuration = 0.2; // seconds
   let tileTransformEffect = ""; // or "ease-in-out", "cubic-bezier", etc.
   let deadClickChance = 0.1; // 10% chance of a dead click
 
@@ -92,10 +92,22 @@
     const size = ( style.width > style.height ? style.height : style.width ) - ( puzzleBoardSize - 1 );
 
     const puzzleImage = document.getElementById('puzzlePNG');
-
     // Create an Image object
-    const img = new window.Image();
-    img.src = './rickroll.png'; // Make sure this path is correct
+    // 1. List your image filenames (relative to this HTML file)
+    const captchaImages = [
+      'rickroll.png',
+      'itmakemeupset.jpeg',
+      'mothertoad.jpg'
+      // Add more filenames as needed
+    ];
+
+    // 2. Pick one at random
+    const randomIndex = Math.floor(Math.random() * captchaImages.length);
+    const randomImage = captchaImages[randomIndex];
+
+    // 3. Use the random image for the puzzle
+  const img = new window.Image();
+  img.src = './' + randomImage; // Adjust path if needed
 
     img.onload = function() {
       // Create a square canvas
@@ -113,12 +125,10 @@
     // Create a 2D array to track tile positions
     tileGrid = [];
     const tilesDiv = document.getElementById('tiles');
-    tilesDiv.style.gridTemplateColumns = "repeat(" + puzzleBoardSize + ", " +tileSize + "px)";
-    tilesDiv.style.gridTemplateRows = "repeat(" + puzzleBoardSize + ", " +tileSize + "px)";
     const captchaContainer = document.getElementById('captcha-container');
      
-    debugger;
-    tilesDiv.style.left = Number(captchaContainer.getBoundingClientRect().width) / 2 + "px";
+    tilesDiv.style.left = ( Number(captchaContainer.getBoundingClientRect().width) / 2 ) - ( Number(squareCanvas.width) / 2 ) + "px";
+    tilesDiv.style.top = ( Number(captchaContainer.getBoundingClientRect().height) / 2 ) - ( Number(squareCanvas.height) / 2 ) + "px";
     emptyRow = puzzleBoardSize - 1;
     emptyCol = puzzleBoardSize - 1;
     
@@ -171,32 +181,39 @@
 
          // Add click event listener for tileCanvas
         tileCanvas.addEventListener('click', function() {
-          
-          if (Math.random() < deadClickChance) {
-            // Dead click: lock for 1 second (1000 ms)
-            isAnimating = true;
-            console.log('Dead click detected. please wait...');
-            setTimeout(() => {
-            isAnimating = false;
-          }, 2000); // 1000 ms = 1 second
-          return;
-          }
-
-
-        
           if (isAnimating) return; // Prevent clicks during animation
+
+          // ... dead click logic ...
 
           const row = parseInt(this.dataset.row, 10);
           const col = parseInt(this.dataset.col, 10);
-          // Make sure emptyRow and emptyCol are numbers too
           const emptyRowNum = parseInt(emptyRow, 10);
           const emptyColNum = parseInt(emptyCol, 10);
           const isAdjacent =
             (row === emptyRowNum && Math.abs(col - emptyColNum) === 1) ||
             (col === emptyColNum && Math.abs(row - emptyRowNum) === 1);
-       
+
           if (isAdjacent) {
-            isAnimating = true; // Lock further moves
+            isAnimating = true;
+
+
+            if (Math.random() < deadClickChance) {
+              // Dead click: lock for 1 second (1000 ms)
+              console.log('Dead click detected. please wait...');
+              setTimeout(() => {
+                          isAnimating = false;
+                        } , 2000); // 1000 ms = 1 second
+              return;
+            }
+            // Remove any previous transitionend handler
+            this.removeEventListener('transitionend', this._unlockHandler);
+
+            // Define and store the handler on the tile
+            this._unlockHandler = function onTransitionEnd() {
+              isAnimating = false;
+              this.removeEventListener('transitionend', this._unlockHandler);
+            };
+            this.addEventListener('transitionend', this._unlockHandler);
 
             // Move the clicked tile
             
@@ -226,8 +243,7 @@
             
             let delay = Math.random() * 1.5; // seconds
             console.log('Delay:', delay);
-            this.style.transition = `transform ${tileMoveDuration}s linear ${delay}s`;
-
+            this.style.transition = `transform ${tileMoveDuration}s linear`;
             this.style.transform = `translate(${emptyColNum * tileSize}px, ${emptyRowNum * tileSize}px)`;
             
             
@@ -285,18 +301,7 @@
         emptyRow = row;
       }
 
-      // Force a reflow
       tilesDiv.offsetWidth;
-
-      // Re-enable transition for all tiles
-      // for (let tile of tilesDiv.children) {
-             
-            
-      //       tile.style.transition = "transform 4s cubic-bezier(.68,-0.55,.27,1.55)";
-      // }
-         
-
-
 
     }
     
